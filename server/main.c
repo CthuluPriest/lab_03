@@ -2,14 +2,23 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <stdlib.h>
+
+pthread_t thrs[10];
+
+void * thr_func(int  p_sock){
+	printf("lol\n");
+	printf("%d",p_sock);
+	printf("\n");	
+}
 
 
 
-int main()
-{
-	int listener;
+int main(){
+	int listener, sock;
 	struct sockaddr_in addr;
-	
+	pthread_t pid;
 	listener = socket(AF_INET, SOCK_STREAM, 0);
 	if(listener < 0)
 	{
@@ -28,8 +37,12 @@ int main()
 	}
 
 	listen(listener, 5);
-	while(1)
-	{
-		sock = accept(listener, NULL, NULL);
-	}
+	sock = 0;
+//	while(1)
+//	{
+		sock = sock +1;
+		pthread_create(&thrs[0], NULL, thr_func, (void*) sock);
+		pthread_join(thrs[0], NULL);
+		//sock = accept(listener, NULL, NULL);
+//	}
 }
