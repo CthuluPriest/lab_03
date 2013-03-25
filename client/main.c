@@ -7,15 +7,17 @@
 
 
 char message[] = "Hello";
-char buf[sizeof(message)];
+char OK[] = "OK";
+char answer[128];
+char buf[1024];
 char path[1024];
-FILE *stream;
+FILE *pFile;
 
 int main()
 {
 	void* vsize;
 	int sock;
-	int fsize;
+	int bytes_read;
 	struct sockaddr_in addr;
 	
 	sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -37,21 +39,35 @@ int main()
 	}
 
 	send(sock, message, sizeof(message),0);
-	recv(sock, buf, sizeof(message),0);
+	recv(sock, answer, 128,0);
 	printf("connection established \n");
 	printf("file path: ");
 
 	scanf("%s", path);
 	send(sock, path, sizeof(path),0);
-	recv(sock, buf, sizeof(buf),0);
+	//recv(sock, buf, sizeof(buf),0);
 	
 //	fsize = (int) vsize;
-	read(fsize);
+//	read(fsize);
 
-	if((stream = freopen("file.in", "w", stdout)) == NULL) {
+	pFile = fopen("recieved_file", "wb");
+	if(pFile == NULL) {
 		printf("\n Write error \n");	
 		exit(3);
+	}else{
+		printf("opened the file for output\n");
+		do{
+			bytes_read = recv(sock, buf, 1024, 0);
+			printf("recieved the message %s\n", buf);
+			if(strcmp(buf, "done") == 0) break;
+			fwrite(buf, 1, bytes_read, pFile);
+			printf("wrote the buffer to file...\n");
+			send(sock, OK, sizeof(OK), 0);
+			printf("sent back OK\n");
+		}while(bytes_read > 0);
 	}
+
+	fclose(pFile);
 //	printf("%s\n", path);
 	close(sock);
 
