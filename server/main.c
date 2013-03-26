@@ -6,105 +6,119 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 
-int thr_vacant[10];
-char path[1024];
-
-/*struct thr_args{
-	int p_sock;
-	int index;
-};*/
-
-
-
-
-
-
-
+#define buf_length 1024
+#define answer_length 128
+#define path_length 100
 
 void * thr_func(void* arg){
 	FILE* pFile;
+	char *path;
 	int p_sock = (int) arg;
-	char buf[1024];
-	char answer[128];
+	char buf[buf_length];
+	char answer[answer_length];
+	char OK[] = "OK"; 
+	char BADVOODOO[] = "BADVOODOO";
+	char DONE[] = "___done___";
 	int bytes_read;
 	long lsize;
 	int i;
 	int message_count;
+	path = (char*) malloc(sizeof(char)*path_length);
 
-	//args.p_sock = ((struct thr_args *)arg)->p_sock;
-	//args.index = ((struct thr_args *)arg)->index;
-	printf("started\n");
+	printf("server started\n");
 	
 	//exchanging hello message
-	bytes_read = recv(p_sock, answer, 128,0);
+	bytes_read = recv(p_sock, answer, answer_length,0);
 		
 	if(bytes_read < 0){
 		printf("Couln\'t establish the connection\n");
 		close(p_sock);
-		exit(3);
+		exit(1);
 	}
 	send(p_sock, answer, bytes_read, 0);
 	printf("sent hello\n");
 
-	bytes_read = recv(p_sock, path, 1024,0);
+	bytes_read = recv(p_sock, path, path_length,0);
 	
 	if(bytes_read < 0){
 		printf("Couldn\'t recieve the file address\n");
 		close(p_sock);
-		exit(3);
+		exit(2);
 	}
 
 	printf("got address: %s\n", path);
 	
 	pFile = fopen(path, "rb");
 	if(pFile == NULL) {
-		printf("\n Couldn\'t open the file \n");	
-		exit(3);
+		perror("file");
+		send(p_sock, BADVOODOO, sizeof(BADVOODOO), 0);
+		return 0;	
+		//exit(3);
 	}
 	
-	// obtain file size:
+	//obtain file size
 	fseek (pFile , 0 , SEEK_END);
 	lsize = ftell (pFile);
 	rewind (pFile);
-	message_count = lsize/1024;
+	//calculate the number of messages expected
+	message_count = lsize/buf_length;
 	
+	//starting file transmittion
 	printf("Transmittion started...\n");
 	for(i = 0; i<message_count; i++) 
 	{
-		printf("Checked feof\n");
-		if ( fread (buf , 1, 1024, pFile) <= 0 );// break;
+		//if smth went wrong free the resources and exit
+		if ( fread (buf , 1, buf_length, pFile) <= 0 );
 		{
-			printf("fread failed\n");
-			break;
-		//	fclose(pFile);
-		//	close(p_sock);
-		//	exit(3);
+			perror("fread");
+			fclose(pFile);
+			close(p_sock);
+			free(path);
+			exit(4);
 		}
-		printf("Filled the buffer...%s\n",buf);
-		send(p_sock, buf, 1024, 0);
-		printf("sent the package\n");
-		bytes_read = recv(p_sock, answer, 128,0);
-		printf("got the answer: %s\n", answer);
+	
+		//send message
+		send(p_sock, buf, buf_length, 0);
+
+		//wait for cliend to acknowledge that he got the message
+		bytes_read = recv(p_sock, answer, answer_length,0);
+
 		if(bytes_read < 0){
-			printf("The client refused a message\n");
-			break;	
+			perror("trouble with recv");
+			fclose(pFile);
+			close(p_sock);
+			free(path);
+			exit(5);	
+		}
+		
+		if(strcmp(answer, OK) != 0){
+			printf("Client refused a message\n");
+			fclose(pFile);
+			close(p_sock);
+			free(path);
+			exit(5);
 		}
 	}
-	printf("out the cycle\n");
+	printf("Just a little more...\n");
 	
-	int leftover = lsize - message_count*1024;
+	int leftover = lsize - message_count*buf_length;
 	printf("leftover: %d\n", leftover);
 
 	if ( fread (buf , 1, leftover, pFile) <= 0 ){
-		printf("no leftover\n");
+		perror("Reading trouble");
+		fclose(pFile);
+		close(p_sock);
+		free(path);
+		exit(6);
 	}
 	
 	send(p_sock, buf, leftover, 0);
-	bytes_read = recv(p_sock, answer, 128,0);
+	printf("sent the last bit:%s\n", buf);
+	bytes_read = recv(p_sock, answer, answer_length,0);
 	
 	fclose (pFile);
 	printf("closed file\n");
-	send(p_sock, "done", sizeof("done"), 0);
+	send(p_sock, DONE, sizeof(DONE), 0);
 	printf("sent done\n");
 	//send(args.p_sock,(void*) fsize,sizeof(int), 0);
 
@@ -119,11 +133,7 @@ int main(){
 	struct sockaddr_in addr;
 	pthread_t pid;
 	int i;
-
-	for (i = 0; i<10; i++){
-		thr_vacant[i] = 1;
-	}	
-
+	char str[100];
 
 	listener = socket(AF_INET, SOCK_STREAM, 0);
 	if(listener < 0)
@@ -136,6 +146,12 @@ int main(){
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(3561);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+/*	if(inet_pton(AF_INET, "0.0.0.0", &(addr.sin_addr)) <=0){	
+		perror("server address:");	
+		return 1;
+	}*/
+	inet_ntop(AF_INET, &(addr.sin_addr), str, 100);
+	printf("addr: %s\n", str);
 
 	if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0)
 	{
