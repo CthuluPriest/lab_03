@@ -119,8 +119,7 @@ void * thr_func(void* arg){
 	fclose (pFile);
 	printf("closed file\n");
 	send(p_sock, DONE, sizeof(DONE), 0);
-	printf("sent done\n");
-	//send(args.p_sock,(void*) fsize,sizeof(int), 0);
+	printf("sent done\n");;
 
 	close(p_sock);	
 	printf("closed socket\n");
@@ -146,10 +145,6 @@ int main(){
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(3561);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-/*	if(inet_pton(AF_INET, "0.0.0.0", &(addr.sin_addr)) <=0){	
-		perror("server address:");	
-		return 1;
-	}*/
 	inet_ntop(AF_INET, &(addr.sin_addr), str, 100);
 	printf("addr: %s\n", str);
 
@@ -159,21 +154,12 @@ int main(){
 		exit(2);
 	}
 
-	listen(listener, 5);
+	listen(listener, 10);
 	sock = 0;
 	while(1)
 	{
-		//sock = sock +1;
 		sock = accept(listener, NULL, NULL);
-	//	struct thr_args *tmp;
-	//	tmp = malloc(sizeof(*tmp));
-	//	tmp->p_sock = sock;
-		
 		pthread_t thread;
-		
-	//	i = 0;
-	//	printf("%d\n%d\n",tmp.p_sock, tmp.index);
 		pthread_create(&thread, NULL, thr_func, (void*) sock);
-		//sock = accept(listener, NULL, NULL);
 	}
 }
